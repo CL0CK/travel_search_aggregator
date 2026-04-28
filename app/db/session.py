@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, Asyn
 from app.models.base import Base
 from app.models.trip import Trip
 
-DATABASE_URL = "postgresql+asyncpg://postgres:postgres@localhost:5432/travel_aggregator"
+DATABASE_URL = "postgresql+asyncpg://postgres:3030@localhost:5432/travel_aggregator"
 
 engine = create_async_engine(DATABASE_URL, echo=False)
 
