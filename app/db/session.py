@@ -1,11 +1,8 @@
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 
-from app.models.base import Base
-from app.models.trip import Trip
+from app.core.config import build_database_url
 
-DATABASE_URL = "postgresql+asyncpg://postgres:postgres@localhost:5432/travel_aggregator"
-
-engine = create_async_engine(DATABASE_URL, echo=False)
+engine = create_async_engine(build_database_url(), echo=False)
 
 async_session_maker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
