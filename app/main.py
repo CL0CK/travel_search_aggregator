@@ -15,6 +15,7 @@ from app.models.base import Base
 from app.schemas.trip import TripRead
 from app.db.seed import seed_trips, reset_db
 from app.services.search import get_trips_from_providers
+from app.services.ranking import rank_trips
 
 
 @asynccontextmanager
@@ -64,6 +65,8 @@ async def search_trips(
     if max_price is not None:
         filtered = [t for t in filtered if t["price"] <= max_price]
 
+    ranked_trips = rank_trips(filtered, max_price)
+
     now = datetime.now(UTC)
     return [
         TripRead(
@@ -74,7 +77,7 @@ async def search_trips(
             provider=t["provider"],
             created_at=now,
         )
-        for t in filtered
+        for t in ranked_trips
     ]
 
 if __name__ == "__main__":

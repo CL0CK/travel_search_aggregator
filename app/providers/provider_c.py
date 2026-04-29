@@ -12,6 +12,9 @@ async def provider_c() -> list[TripDTO]:
         {"meta": {"id": "c1"}, "data": {"destination": "Berlin"}, "pricing": {"amount": 310.0}, "rating": 4.2},
         {"meta": {"id": "c2"}, "data": {"destination": "Barcelona"}, "pricing": {"amount": 390.0}, "rating": 4.4},
         {"meta": {"id": "c3"}, "data": {"destination": "Rome"}, "pricing": {"amount": 440.0}, "rating": 4.6},
+        {"meta": {"id": "c4"}, "data": {"destination": "Berlin"}, "pricing": {"amount": 280.0}, "rating": 4.0},
+        {"meta": {"id": "c5"}, "data": {"destination": "Barcelona"}, "pricing": {"amount": 370.0}, "rating": 4.7},
+        {"meta": {"id": "c6"}, "data": {"destination": "Rome"}, "pricing": {"amount": 460.0}, "rating": 4.3},
     ]
 
     return adapt_trips(raw_trips, MAPPING_C, "ProviderC")
