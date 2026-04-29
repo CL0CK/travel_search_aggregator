@@ -9,13 +9,13 @@ class Settings(BaseSettings):
     db_user: str = Field(default="postgres")
     db_password: str = Field(default="")
 
-    class Config:
-        env_file = ".env"
-        extra = "allow"
+    model_config = {
+        "env_file": ".env",
+    }
 
+    @property
+    def database_url(self) -> str:
+        return f"postgresql+asyncpg://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_name}"
 
 settings = Settings()
 
-
-def build_database_url() -> str:
-    return f"postgresql+asyncpg://{settings.db_user}:{settings.db_password}@{settings.db_host}:{settings.db_port}/{settings.db_name}"

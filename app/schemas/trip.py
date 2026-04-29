@@ -1,6 +1,14 @@
 import uuid
 from datetime import datetime
+from typing import TypedDict
 from pydantic import BaseModel, ConfigDict
+
+
+class TripDTO(TypedDict):
+    destination: str
+    price: float
+    rating: float
+    provider: str
 
 
 class TripCreate(BaseModel):

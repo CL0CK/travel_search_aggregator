@@ -1,12 +1,20 @@
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+import uuid
+from datetime import datetime, UTC
+
+import uvicorn
 from fastapi import FastAPI, Query
 from contextlib import asynccontextmanager
 
 from app.db.session import engine, async_session_maker
 from app.models.base import Base
-from app.models.trip import Trip
 from app.schemas.trip import TripRead
 from app.db.seed import seed_trips, reset_db
-from sqlalchemy import select
+from app.services.search import get_trips_from_providers
 
 
 @asynccontextmanager
@@ -46,12 +54,28 @@ async def search_trips(
     destination: str = Query(..., min_length=1),
     max_price: float | None = None,
 ):
-    query = select(Trip).where(Trip.destination == destination)
+    results = await get_trips_from_providers()
+
+    all_trips = []
+    for trips in results.values():
+        all_trips.extend(trips)
+
+    filtered = [t for t in all_trips if t["destination"] == destination]
     if max_price is not None:
-        query = query.where(Trip.price <= max_price)
+        filtered = [t for t in filtered if t["price"] <= max_price]
 
-    async with async_session_maker() as session:
-        result = await session.execute(query)
-        trips = result.scalars().all()
+    now = datetime.now(UTC)
+    return [
+        TripRead(
+            id=uuid.uuid4(),
+            destination=t["destination"],
+            price=t["price"],
+            rating=t["rating"],
+            provider=t["provider"],
+            created_at=now,
+        )
+        for t in filtered
+    ]
 
-    return trips
+if __name__ == "__main__":
+    uvicorn.run(app, host="127.0.0.1", port=8000)
