@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     db_name: str = Field(default="travel_aggregator")
     db_user: str = Field(default="postgres")
     db_password: str = Field(default="")
+    redis_url: str = Field(default="redis://localhost:6379")
 
     model_config = {
         "env_file": ".env",

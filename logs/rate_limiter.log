@@ -1,0 +1,32 @@
+2026-04-30 21:05:19,375 - httpx - INFO - HTTP Request: GET http://test/search?destination=Paris "HTTP/1.1 200 OK"
+2026-04-30 21:05:20,889 - httpx - INFO - HTTP Request: GET http://test/search?destination=Berlin "HTTP/1.1 200 OK"
+2026-04-30 21:05:25,549 - httpx - INFO - HTTP Request: GET http://test/search?destination=Paris "HTTP/1.1 200 OK"
+2026-04-30 21:05:25,554 - httpx - INFO - HTTP Request: GET http://test/search?destination=Paris "HTTP/1.1 200 OK"
+2026-04-30 21:05:25,557 - app.core.rate_limiter - WARNING - Rate limit exceeded for 127.0.0.1 on /search
+2026-04-30 21:05:25,557 - app.core.dependencies - WARNING - Rate limit exceeded for 127.0.0.1 on /search
+2026-04-30 21:05:25,558 - httpx - INFO - HTTP Request: GET http://test/search?destination=Paris "HTTP/1.1 429 Too Many Requests"
+2026-04-30 21:05:25,560 - app.core.rate_limiter - WARNING - Rate limit exceeded for 127.0.0.1 on /search
+2026-04-30 21:05:25,560 - app.core.dependencies - WARNING - Rate limit exceeded for 127.0.0.1 on /search
+2026-04-30 21:05:25,561 - httpx - INFO - HTTP Request: GET http://test/search?destination=Paris "HTTP/1.1 429 Too Many Requests"
+2026-04-30 21:05:25,564 - app.core.rate_limiter - WARNING - Rate limit exceeded for 127.0.0.1 on /search
+2026-04-30 21:05:25,564 - app.core.dependencies - WARNING - Rate limit exceeded for 127.0.0.1 on /search
+2026-04-30 21:05:25,564 - httpx - INFO - HTTP Request: GET http://test/search?destination=Paris "HTTP/1.1 429 Too Many Requests"
+2026-04-30 21:05:25,568 - app.core.rate_limiter - WARNING - Rate limit exceeded for 127.0.0.1 on /search
+2026-04-30 21:05:25,568 - app.core.dependencies - WARNING - Rate limit exceeded for 127.0.0.1 on /search
+2026-04-30 21:05:25,569 - httpx - INFO - HTTP Request: GET http://test/search?destination=Paris "HTTP/1.1 429 Too Many Requests"
+2026-04-30 21:05:25,573 - app.core.rate_limiter - WARNING - Rate limit exceeded for 127.0.0.1 on /search
+2026-04-30 21:05:25,573 - app.core.dependencies - WARNING - Rate limit exceeded for 127.0.0.1 on /search
+2026-04-30 21:05:25,573 - httpx - INFO - HTTP Request: GET http://test/search?destination=Paris "HTTP/1.1 429 Too Many Requests"
+2026-04-30 21:15:16,385 - httpx - INFO - HTTP Request: GET http://test/search?destination=Berlin "HTTP/1.1 200 OK"
+2026-04-30 21:15:16,390 - httpx - INFO - HTTP Request: GET http://test/search?destination=Berlin "HTTP/1.1 200 OK"
+2026-04-30 21:15:16,395 - httpx - INFO - HTTP Request: GET http://test/search?destination=Berlin "HTTP/1.1 200 OK"
+2026-04-30 21:15:16,399 - httpx - INFO - HTTP Request: GET http://test/search?destination=Berlin "HTTP/1.1 200 OK"
+2026-04-30 21:15:16,406 - httpx - INFO - HTTP Request: GET http://test/search?destination=Berlin "HTTP/1.1 200 OK"
+2026-04-30 21:15:16,410 - app.core.rate_limiter - WARNING - Rate limit exceeded for 127.0.0.1 on /search
+2026-04-30 21:15:16,410 - app.core.dependencies - WARNING - Rate limit exceeded for 127.0.0.1 on /search
+2026-04-30 21:15:16,410 - httpx - INFO - HTTP Request: GET http://test/search?destination=Berlin "HTTP/1.1 429 Too Many Requests"
+2026-04-30 21:15:16,414 - app.core.rate_limiter - WARNING - Rate limit exceeded for 127.0.0.1 on /search
+2026-04-30 21:15:16,415 - app.core.dependencies - WARNING - Rate limit exceeded for 127.0.0.1 on /search
+2026-04-30 21:15:16,415 - httpx - INFO - HTTP Request: GET http://test/search?destination=Berlin "HTTP/1.1 429 Too Many Requests"
+2026-04-30 21:17:12,628 - __main__ - INFO - Redis connected
+2026-04-30 21:18:13,597 - __main__ - INFO - Redis disconnected
