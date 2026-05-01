@@ -9,6 +9,9 @@ class Settings(BaseSettings):
     db_user: str = Field(default="postgres")
     db_password: str = Field(default="")
     redis_url: str = Field(default="redis://localhost:6379")
+    cache_ttl: int = Field(default=60)
+    rate_limit_max_requests: int = Field(default=5)
+    rate_limit_window_seconds: int = Field(default=30)
 
     model_config = {
         "env_file": ".env",

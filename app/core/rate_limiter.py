@@ -2,9 +2,6 @@ import random
 import logging
 from time import time
 from redis.asyncio import Redis
-from fastapi import Depends
-
-from app.core.redis import get_redis
 
 logger = logging.getLogger(__name__)
 
@@ -18,12 +15,12 @@ class RateLimiter:
         if self._lua_sha is None:
             script = """
                 redis.call("ZREMRANGEBYSCORE", KEYS[1], 0, ARGV[2])
-                redis.call("ZADD", KEYS[1], ARGV[1], ARGV[5])
-                redis.call("EXPIRE", KEYS[1], ARGV[4])
                 local count = redis.call("ZCARD", KEYS[1])
-                if count > tonumber(ARGV[3]) then
+                if count >= tonumber(ARGV[3]) then
                     return 1
                 end
+                redis.call("ZADD", KEYS[1], ARGV[1], ARGV[5])
+                redis.call("EXPIRE", KEYS[1], ARGV[4])
                 return 0
             """
             self._lua_sha = await self._redis.script_load(script)
@@ -53,7 +50,3 @@ class RateLimiter:
         if result == 1:
             logger.warning(f"Rate limit exceeded for {ip_address} on {endpoint}")
         return result == 1
-
-
-def get_rate_limiter(redis: Redis = Depends(get_redis)) -> RateLimiter:
-    return RateLimiter(redis)

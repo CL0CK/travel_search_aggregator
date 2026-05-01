@@ -3,14 +3,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import json
 import uuid
 import logging
 from datetime import datetime, UTC
 
 import uvicorn
-from fastapi import FastAPI, Query, Depends, Request, HTTPException, status
-from fastapi.encoders import jsonable_encoder
+from fastapi import FastAPI, Query, Depends, Request
 from contextlib import asynccontextmanager
 from redis.asyncio import Redis
 
@@ -20,8 +18,11 @@ from app.schemas.trip import TripRead
 from app.db.seed import seed_trips, reset_db
 from app.services.search import get_trips_from_providers
 from app.services.ranking import rank_trips
-from app.core.redis import get_redis
+from app.services.cache import CacheService
+from app.core.redis import create_redis
+from app.core.rate_limiter import RateLimiter
 from app.core.dependencies import create_rate_limit_dependency
+from app.core.config import settings
 
 logging.basicConfig(
     level=logging.INFO,
@@ -35,11 +36,33 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def get_redis(request: Request) -> Redis:
+    redis = getattr(request.app.state, "redis", None)
+    if redis is None:
+        return create_redis()
+    return redis
+
+
+def get_cache_service(request: Request) -> CacheService:
+    cache = getattr(request.app.state, "cache_service", None)
+    if cache is None:
+        redis = get_redis(request)
+        return CacheService(redis, ttl=settings.cache_ttl)
+    return cache
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    redis = get_redis()
-    await redis.ping()
-    logger.info("Redis connected")
+    redis = None
+    try:
+        redis = create_redis()
+        await redis.ping()
+        logger.info("Redis connected")
+        app.state.redis = redis
+        app.state.rate_limiter = RateLimiter(redis)
+        app.state.cache_service = CacheService(redis, ttl=settings.cache_ttl)
+    except Exception as e:
+        logger.warning(f"Redis unavailable, running without cache/rate limiting: {e}")
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -49,9 +72,10 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    await redis.aclose()
+    if redis:
+        await redis.aclose()
+        logger.info("Redis disconnected")
     await engine.dispose()
-    logger.info("Redis disconnected")
 
 
 app = FastAPI(
@@ -66,7 +90,7 @@ async def health_check():
     return {"status": "healthy"}
 
 
-search_rate_limit = create_rate_limit_dependency("/search", 5, 30)
+search_rate_limit = create_rate_limit_dependency("/search", settings.rate_limit_max_requests, settings.rate_limit_window_seconds)
 debug_rate_limit = create_rate_limit_dependency("/debug/reset-db", 3, 60)
 
 
@@ -74,17 +98,16 @@ debug_rate_limit = create_rate_limit_dependency("/debug/reset-db", 3, 60)
 async def search_trips(
     destination: str = Query(..., min_length=1),
     max_price: float | None = None,
-    redis: Redis = Depends(get_redis),
+    cache: CacheService = Depends(get_cache_service),
 ):
-    cache_key = f"search:{destination}:{max_price if max_price else 'none'}"
+    destination = destination.lower()
+    max_price = round(max_price, 2) if max_price else None
+    cache_key = f"v1:search:{destination}:{max_price if max_price else 'none'}"
 
     # Try cache
-    try:
-        cached = await redis.get(cache_key)
-        if cached:
-            return [TripRead(**item) for item in json.loads(cached)]
-    except Exception:
-        pass
+    cached = await cache.get(cache_key)
+    if cached:
+        return [TripRead(**item) for item in cached]
 
     results = await get_trips_from_providers()
 
@@ -92,7 +115,7 @@ async def search_trips(
     for trips in results.values():
         all_trips.extend(trips)
 
-    filtered = [t for t in all_trips if t["destination"] == destination]
+    filtered = [t for t in all_trips if t["destination"].lower() == destination]
     if max_price is not None:
         filtered = [t for t in filtered if t["price"] <= max_price]
 
@@ -112,14 +135,7 @@ async def search_trips(
     ]
 
     # Store in cache
-    try:
-        await redis.setex(
-            cache_key,
-            60,
-            json.dumps(jsonable_encoder(response))
-        )
-    except Exception:
-        pass
+    await cache.set(cache_key, response)
 
     return response
 
