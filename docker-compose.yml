@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  redis_container:
+    image: redis:latest
+    container_name: redis_container
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+    networks:
+      - redis_net
+
+  redis_gui:
+    image: redislabs/redisinsight:latest
+    container_name: redis_gui
+    restart: always
+    ports:
+      - "8001:5540"
+    volumes:
+      - ./redisinsight_data:/db
+    environment:
+      - REDIS_0_HOST=redis_container
+      - REDIS_0_PORT=6379
+    depends_on:
+      redis_container:
+        condition: service_healthy
+    networks:
+      - redis_net
+
+networks:
+  redis_net:
+    driver: bridge
+
+volumes:
+  redis_data:
+  redisinsight_data:
