@@ -4,11 +4,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import uuid
+import logging
 from datetime import datetime, UTC
 
 import uvicorn
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, Depends, Request
 from contextlib import asynccontextmanager
+from redis.asyncio import Redis
 
 from app.db.session import engine, async_session_maker
 from app.models.base import Base
@@ -16,10 +18,52 @@ from app.schemas.trip import TripRead
 from app.db.seed import seed_trips, reset_db
 from app.services.search import get_trips_from_providers
 from app.services.ranking import rank_trips
+from app.services.cache import CacheService
+from app.core.redis import create_redis
+from app.core.rate_limiter import RateLimiter
+from app.core.dependencies import create_rate_limit_dependency
+from app.core.config import settings
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler("logs/rate_limiter.log"),
+    ],
+)
+
+logger = logging.getLogger(__name__)
+
+
+def get_redis(request: Request) -> Redis:
+    redis = getattr(request.app.state, "redis", None)
+    if redis is None:
+        return create_redis()
+    return redis
+
+
+def get_cache_service(request: Request) -> CacheService:
+    cache = getattr(request.app.state, "cache_service", None)
+    if cache is None:
+        redis = get_redis(request)
+        return CacheService(redis, ttl=settings.cache_ttl)
+    return cache
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    redis = None
+    try:
+        redis = create_redis()
+        await redis.ping()
+        logger.info("Redis connected")
+        app.state.redis = redis
+        app.state.rate_limiter = RateLimiter(redis)
+        app.state.cache_service = CacheService(redis, ttl=settings.cache_ttl)
+    except Exception as e:
+        logger.warning(f"Redis unavailable, running without cache/rate limiting: {e}")
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
@@ -27,6 +71,10 @@ async def lifespan(app: FastAPI):
         await seed_trips(session)
 
     yield
+
+    if redis:
+        await redis.aclose()
+        logger.info("Redis disconnected")
     await engine.dispose()
 
 
@@ -42,33 +90,39 @@ async def health_check():
     return {"status": "healthy"}
 
 
-@app.post("/debug/reset-db")
-async def debug_reset_db():
-    async with async_session_maker() as session:
-        await reset_db(session)
-        await seed_trips(session)
-    return {"status": "database reset"}
+search_rate_limit = create_rate_limit_dependency("/search", settings.rate_limit_max_requests, settings.rate_limit_window_seconds)
+debug_rate_limit = create_rate_limit_dependency("/debug/reset-db", 3, 60)
 
 
-@app.get("/search", response_model=list[TripRead])
+@app.get("/search", response_model=list[TripRead], dependencies=[Depends(search_rate_limit)])
 async def search_trips(
     destination: str = Query(..., min_length=1),
     max_price: float | None = None,
+    cache: CacheService = Depends(get_cache_service),
 ):
+    destination = destination.lower()
+    max_price = round(max_price, 2) if max_price else None
+    cache_key = f"v1:search:{destination}:{max_price if max_price else 'none'}"
+
+    # Try cache
+    cached = await cache.get(cache_key)
+    if cached:
+        return [TripRead(**item) for item in cached]
+
     results = await get_trips_from_providers()
 
     all_trips = []
     for trips in results.values():
         all_trips.extend(trips)
 
-    filtered = [t for t in all_trips if t["destination"] == destination]
+    filtered = [t for t in all_trips if t["destination"].lower() == destination]
     if max_price is not None:
         filtered = [t for t in filtered if t["price"] <= max_price]
 
     ranked_trips = rank_trips(filtered, max_price)
 
     now = datetime.now(UTC)
-    return [
+    response = [
         TripRead(
             id=uuid.uuid4(),
             destination=t["destination"],
@@ -79,6 +133,20 @@ async def search_trips(
         )
         for t in ranked_trips
     ]
+
+    # Store in cache
+    await cache.set(cache_key, response)
+
+    return response
+
+
+@app.post("/debug/reset-db", dependencies=[Depends(debug_rate_limit)])
+async def debug_reset_db():
+    async with async_session_maker() as session:
+        await reset_db(session)
+        await seed_trips(session)
+    return {"status": "database reset"}
+
 
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8000)

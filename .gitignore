@@ -1,3 +1,4 @@
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
@@ -18,16 +19,39 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+
+# Virtual environments
 .env
-.venv
+.venv/
 venv/
 ENV/
 env/
+
+# Database
 *.db
 *.sqlite
 *.sqlite3
+
+# Testing
 .pytest_cache/
 .ruff_cache/
 .coverage
 htmlcov/
 .mypy_cache/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+
+# Docker volumes (local data)
+redis_data/
+redisinsight_data/
