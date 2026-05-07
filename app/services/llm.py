@@ -8,7 +8,10 @@ logger = logging.getLogger(__name__)
 
 
 class ExtractionResult(BaseModel):
-    destination: str
+    destination: str | None = None
+    origin: str | None = None
+    check_in: str | None = None
+    check_out: str | None = None
     budget: float | None = None
 
 
@@ -17,15 +20,21 @@ OLLAMA_MODEL = "phi3:mini"
 
 def _build_prompt(query: str) -> str:
     return (
-        f"Extract destination and optional budget from: {query}. "
-        "Return JSON with keys destination (string, always in English) and budget (number or null). "
-        "If destination is in another language, translate it to English."
+        f"Extract travel parameters from: {query}. "
+        "Return JSON with keys: "
+        "destination (city name in English, or null), "
+        "origin (departure city in English, or null), "
+        "check_in (date in YYYY-MM-DD format, or null), "
+        "check_out (date in YYYY-MM-DD format, or null), "
+        "budget (number or null). "
+        "If a field cannot be determined, use null. "
+        "Translate city names to English."
     )
 
 
 def _parse_response(text: str) -> ExtractionResult:
     text = text.strip()
-    json_match = re.search(r'\{[^{}]*"destination"[^{}]*\}', text, re.DOTALL)
+    json_match = re.search(r'\{[^{}]*\}', text, re.DOTALL)
     if not json_match:
         raise ValueError("Failed to parse LLM response")
 
@@ -35,8 +44,9 @@ def _parse_response(text: str) -> ExtractionResult:
         raise ValueError("Failed to parse LLM response")
 
     dest = data.get("destination")
-    if not dest or not isinstance(dest, str):
-        raise ValueError("Could not determine destination from query")
+    origin = data.get("origin")
+    check_in = data.get("check_in")
+    check_out = data.get("check_out")
 
     budget = data.get("budget")
     if budget is not None:
@@ -45,8 +55,24 @@ def _parse_response(text: str) -> ExtractionResult:
         except (ValueError, TypeError):
             budget = None
 
-    logger.info(f"Extracted: destination={dest}, budget={budget}")
-    return ExtractionResult(destination=dest, budget=budget)
+    # Normalize dates — handle "May 11" → "2026-05-11" style if possible
+    # For now, trust LLM returns ISO format
+    if check_in and not re.match(r'^\d{4}-\d{2}-\d{2}$', str(check_in)):
+        check_in = None
+    if check_out and not re.match(r'^\d{4}-\d{2}-\d{2}$', str(check_out)):
+        check_out = None
+
+    logger.info(
+        f"Extracted: dest={dest}, origin={origin}, "
+        f"check_in={check_in}, check_out={check_out}, budget={budget}"
+    )
+    return ExtractionResult(
+        destination=dest,
+        origin=origin,
+        check_in=check_in,
+        check_out=check_out,
+        budget=budget,
+    )
 
 
 async def extract_travel_params(query: str) -> ExtractionResult:
@@ -56,13 +82,13 @@ async def extract_travel_params(query: str) -> ExtractionResult:
         messages=[
             {
                 "role": "system",
-                "content": "You are a travel assistant. Return ONLY valid JSON. No explanations, no text, no markdown."
-             },
+                "content": "You are a travel assistant. Return ONLY valid JSON. No explanations, no text, no markdown.",
+            },
             {"role": "user", "content": prompt},
         ],
         options={
             "num_ctx": 2048,
-            "num_predict": 128,
+            "num_predict": 256,
             "temperature": 0.0,
         },
     )

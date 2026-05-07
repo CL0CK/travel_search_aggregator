@@ -15,7 +15,7 @@ from redis.asyncio import Redis
 from app.db.session import engine, async_session_maker
 from app.models.base import Base
 from app.schemas.trip import TripRead
-from app.schemas.recommend import RecommendRequest, RecommendResponse
+from app.schemas.search_ai import SearchAIRequest, SearchAIResponse
 from app.db.seed import seed_trips, reset_db
 from app.services.search import get_trips_from_providers
 from app.services.ranking import rank_trips
@@ -61,7 +61,7 @@ async def lifespan(app: FastAPI):
     try:
         ensure_model_available()
     except Exception as e:
-        logger.warning(f"LLM model not available, /recommend will be disabled: {e}")
+        logger.warning(f"LLM model not available, /search_ai will be disabled: {e}")
 
     redis = None
     try:
@@ -102,33 +102,52 @@ async def health_check():
 
 search_rate_limit = create_rate_limit_dependency("/search", settings.rate_limit_max_requests, settings.rate_limit_window_seconds)
 debug_rate_limit = create_rate_limit_dependency("/debug/reset-db", 3, 60)
-recommend_rate_limit = create_rate_limit_dependency("/recommend", 3, 60)
+search_ai_rate_limit = create_rate_limit_dependency("/search_ai", 3, 60)
 
 
 @app.get("/search", response_model=list[TripRead], dependencies=[Depends(search_rate_limit)])
 async def search_trips(
     destination: str = Query(..., min_length=1),
+    origin: str = Query(..., min_length=1),
+    check_in: str = Query(..., description="ISO date: 2026-05-11"),
+    check_out: str = Query(..., description="ISO date: 2026-05-18"),
     max_price: float | None = None,
+    hotel_stars: int | None = None,
+    mock: bool = Query(True, description="True = mock data, False = RapidAPI real data"),
     cache: CacheService = Depends(get_cache_service),
 ):
     destination = destination.lower()
+    origin = origin.lower()
     max_price = round(max_price, 2) if max_price else None
-    cache_key = f"v1:search:{destination}:{max_price if max_price else 'none'}"
+    stars_filter = hotel_stars if hotel_stars else "none"
+    cache_key = f"v1:search:{origin}:{destination}:{check_in}:{check_out}:{max_price if max_price else 'none'}:{stars_filter}:{'mock' if mock else 'real'}"
 
     # Try cache
     cached = await cache.get(cache_key)
     if cached:
         return [TripRead(**item) for item in cached]
 
-    results = await get_trips_from_providers()
+    results = await get_trips_from_providers(
+        mock=mock,
+        origin=origin,
+        destination=destination,
+        check_in=check_in,
+        check_out=check_out,
+        hotel_stars=hotel_stars,
+    )
 
     all_trips = []
     for trips in results.values():
         all_trips.extend(trips)
 
-    filtered = [t for t in all_trips if t["destination"].lower() == destination]
+    if mock:
+        filtered = [t for t in all_trips if t["destination"].lower() == destination]
+    else:
+        filtered = list(all_trips)
     if max_price is not None:
         filtered = [t for t in filtered if t["price"] <= max_price]
+    if hotel_stars is not None:
+        filtered = [t for t in filtered if t.get("hotel_stars") == hotel_stars]
 
     ranked_trips = rank_trips(filtered, max_price)
 
@@ -141,6 +160,10 @@ async def search_trips(
             rating=t["rating"],
             provider=t["provider"],
             created_at=now,
+            origin=t.get("origin"),
+            hotel_stars=t.get("hotel_stars"),
+            flight_price=t.get("flight_price"),
+            hotel_price=t.get("hotel_price"),
         )
         for t in ranked_trips
     ]
@@ -159,9 +182,9 @@ async def debug_reset_db():
     return {"status": "database reset"}
 
 
-@app.post("/recommend", response_model=RecommendResponse, dependencies=[Depends(recommend_rate_limit)])
-async def recommend_trips(
-    body: RecommendRequest,
+@app.post("/search_ai", response_model=SearchAIResponse, dependencies=[Depends(search_ai_rate_limit)])
+async def search_trips_ai(
+    body: SearchAIRequest,
     cache: CacheService = Depends(get_cache_service),
 ):
     # Extract params using Ollama
@@ -174,30 +197,58 @@ async def recommend_trips(
             detail="Failed to process query with AI",
         )
 
+    # Validate required fields
+    if not extracted.destination:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Could not determine destination. Please specify a city.",
+        )
+    if not extracted.origin:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Please specify your departure city.",
+        )
+    if not extracted.check_in or not extracted.check_out:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Please specify your travel dates.",
+        )
+
     destination = extracted.destination.lower()
+    origin = extracted.origin.lower()
     budget = round(extracted.budget, 2) if extracted.budget else None
-    cache_key = f"v1:recommend:{destination}:{budget if budget else 'none'}"
+    check_in = extracted.check_in
+    check_out = extracted.check_out
+    cache_key = f"v1:search_ai:{origin}:{destination}:{check_in}:{check_out}:{budget if budget else 'none'}:{'mock' if body.mock else 'real'}"
 
     # Try cache
     cached = await cache.get(cache_key)
     if cached:
-        return RecommendResponse(**cached)
+        return SearchAIResponse(**cached)
 
     # Search providers
-    results = await get_trips_from_providers()
+    results = await get_trips_from_providers(
+        mock=body.mock,
+        origin=origin,
+        destination=destination,
+        check_in=check_in,
+        check_out=check_out,
+        hotel_stars=None,
+    )
     all_trips = []
     for trips in results.values():
         all_trips.extend(trips)
 
-    filtered = [t for t in all_trips if t["destination"].lower() == destination]
+    filtered = list(all_trips) if not body.mock else [t for t in all_trips if t["destination"].lower() == destination]
     if budget is not None:
         filtered = [t for t in filtered if t["price"] <= budget]
 
     ranked = rank_trips(filtered, budget)
 
     now = datetime.now(UTC)
-    response_data = RecommendResponse(
+    response_data = SearchAIResponse(
         destination=destination,
+        origin=origin,
         budget=budget,
         results=[
             TripRead(
@@ -207,6 +258,10 @@ async def recommend_trips(
                 rating=t["rating"],
                 provider=t["provider"],
                 created_at=now,
+                origin=t.get("origin"),
+                hotel_stars=t.get("hotel_stars"),
+                flight_price=t.get("flight_price"),
+                hotel_price=t.get("hotel_price"),
             )
             for t in ranked
         ],
