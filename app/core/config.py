@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     cache_ttl: int = Field(default=60)
     rate_limit_max_requests: int = Field(default=5)
     rate_limit_window_seconds: int = Field(default=30)
+    rapidapi_key: str = Field(default="")
 
     model_config = {
         "env_file": ".env",
