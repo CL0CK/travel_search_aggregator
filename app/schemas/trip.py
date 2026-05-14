@@ -33,5 +33,9 @@ class TripRead(BaseModel):
     hotel_stars: int | None = None
     flight_price: float | None = None
     hotel_price: float | None = None
+    check_in: str | None = None
+    check_out: str | None = None
+    from_airport: str | None = None
+    to_airport: str | None = None
 
     model_config = ConfigDict(from_attributes=True)

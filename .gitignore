@@ -55,3 +55,7 @@ logs/
 # Docker volumes (local data)
 redis_data/
 redisinsight_data/
+
+# Frontend build artifacts & deps
+frontend/dist/
+frontend/node_modules/
