@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 
 import uvicorn
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.redis import create_redis
@@ -23,6 +24,7 @@ from app.api.routes.health import router as health_router
 from app.api.routes.search import router as search_router
 from app.api.routes.search_ai import router as search_ai_router
 from app.api.routes.debug import router as debug_router
+from app.api.routes.extract import router as extract_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -74,10 +76,19 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.include_router(health_router)
 app.include_router(search_router)
 app.include_router(search_ai_router)
 app.include_router(debug_router)
+app.include_router(extract_router)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8000)

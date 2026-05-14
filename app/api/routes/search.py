@@ -9,6 +9,14 @@ from app.services.search import get_trips_from_providers
 from app.services.ranking import rank_trips
 from app.services.cache import CacheService
 from app.api.deps import get_cache_service, search_rate_limit
+from app.providers.provider_rapidapi import FLIGHT_CODES as _RAPID_FLIGHT_CODES
+
+
+def _airport_code(city: str) -> str | None:
+    code = _RAPID_FLIGHT_CODES.get(city.lower().strip())
+    if code:
+        return code.replace(".AIRPORT", "")
+    return None
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +68,8 @@ async def search_trips(
 
     ranked_trips = rank_trips(filtered, max_price)
 
+    from_code = _airport_code(origin)
+    to_code = _airport_code(destination)
     now = datetime.now(UTC)
     response = [
         TripRead(
@@ -73,6 +83,10 @@ async def search_trips(
             hotel_stars=t.get("hotel_stars"),
             flight_price=t.get("flight_price"),
             hotel_price=t.get("hotel_price"),
+            check_in=check_in,
+            check_out=check_out,
+            from_airport=from_code,
+            to_airport=to_code,
         )
         for t in ranked_trips
     ]
