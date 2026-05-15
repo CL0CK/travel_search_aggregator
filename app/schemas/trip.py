@@ -13,6 +13,7 @@ class TripDTO(TypedDict, total=False):
     hotel_stars: int
     flight_price: float
     hotel_price: float
+    booking_url: str | None
 
 
 class TripCreate(BaseModel):
@@ -37,5 +38,6 @@ class TripRead(BaseModel):
     check_out: str | None = None
     from_airport: str | None = None
     to_airport: str | None = None
+    booking_url: str | None = None
 
     model_config = ConfigDict(from_attributes=True)

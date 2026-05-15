@@ -38,10 +38,10 @@ export async function searchTrips(params: SearchParams): Promise<TripRead[]> {
   return request<TripRead[]>(`/search?${qs.toString()}`);
 }
 
-export async function extractParams(query: string): Promise<ExtractionParams> {
+export async function extractParams(query: string, accumulated?: Partial<ExtractionParams>): Promise<ExtractionParams> {
   return request<ExtractionParams>('/extract', {
     method: 'POST',
-    body: JSON.stringify({ query }),
+    body: JSON.stringify({ query, accumulated }),
   });
 }
 

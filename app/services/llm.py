@@ -6,6 +6,8 @@ from datetime import datetime
 import ollama
 from pydantic import BaseModel
 
+from app.providers.provider_rapidapi import FLIGHT_CODES
+
 logger = logging.getLogger(__name__)
 
 
@@ -15,6 +17,7 @@ class ExtractionResult(BaseModel):
     check_in: str | None = None
     check_out: str | None = None
     budget: float | None = None
+    valid: bool = True
 
 
 OLLAMA_MODEL = "phi3:mini"
@@ -55,17 +58,42 @@ def _extract_dates_from_query(query: str) -> tuple[str | None, str | None, str]:
     return check_in, check_out, cleaned
 
 
-def _build_prompt(cleaned_query: str) -> str:
-    return (
-        f"Extract travel parameters from: {cleaned_query}. "
+def _normalize_city_name(name: str | None) -> str | None:
+    if not name:
+        return None
+    cleaned = name.lower().strip()
+    code = FLIGHT_CODES.get(cleaned)
+    if code:
+        # Find English version: another key that maps to same code and is ASCII
+        for cn, c in FLIGHT_CODES.items():
+            if c == code and cn.isascii():
+                return cn.title()
+        return cleaned.title()
+    return name.strip()
+
+
+def _build_prompt(cleaned_query: str, accumulated: dict | None = None) -> str:
+    parts = [f"Extract travel parameters from: {cleaned_query}."]
+    if accumulated:
+        known = []
+        if accumulated.get("destination"):
+            known.append(f"destination = {accumulated['destination']}")
+        if accumulated.get("origin"):
+            known.append(f"origin = {accumulated['origin']}")
+        if known:
+            parts.append(f"We already know: {', '.join(known)}.")
+    parts.append(
         "Return ONLY valid JSON with keys: "
-        "destination (city name in English, or null), "
-        "origin (departure city in English, or null), "
+        "valid (false if NOT about travel/hotels/vacation, else true), "
+        "destination (city name, or null), "
+        "origin (departure city, or null), "
         "budget (number or null). "
-        "Do NOT extract dates. Do NOT add explanations. "
-        "If a field cannot be determined, use null. "
-        "Translate city names to English."
+        "Do NOT extract dates. Use null for missing fields. "
+        "NEVER invent cities. Pay attention to direction words: "
+        "'from/von/aus/из' indicates origin, 'to/nach/in/в' indicates destination. "
+        "Return ONLY valid JSON."
     )
+    return " ".join(parts)
 
 
 def _strip_markdown(text: str) -> str:
@@ -93,21 +121,45 @@ def _has_meaningful_words(text: str) -> bool:
     return any(w not in _STOP_WORDS and w.isalpha() and len(w) > 1 for w in words)
 
 
-async def extract_travel_params(query: str) -> ExtractionResult:
+def _city_in_query(city: str, query: str) -> bool:
+    """Check if a city name (in any language) appears in the original query."""
+    q = query.lower()
+    if city.lower() in q:
+        return True
+    code = FLIGHT_CODES.get(city.lower().strip())
+    if code:
+        for cn, c in FLIGHT_CODES.items():
+            if c == code and cn in q:
+                return True
+    return False
+
+
+def _is_hallucination(dest: str | None, origin: str | None, query: str) -> bool:
+    if not dest and not origin:
+        return False
+    for city in (dest, origin):
+        if city and not _city_in_query(city, query):
+            return True
+    return False
+
+
+async def extract_travel_params(query: str, accumulated: dict | None = None) -> ExtractionResult:
     check_in, check_out, cleaned = _extract_dates_from_query(query)
 
     dest = origin = None
     budget = None
+    llm_called = False
 
     if _has_meaningful_words(cleaned):
-        prompt = _build_prompt(cleaned)
+        llm_called = True
+        prompt = _build_prompt(cleaned, accumulated)
         try:
             response = ollama.chat(
                 model=OLLAMA_MODEL,
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are a travel assistant. Return ONLY valid JSON. No explanations.",
+                        "content": "You extract travel data. Return JSON only.",
                     },
                     {"role": "user", "content": prompt},
                 ],
@@ -116,13 +168,16 @@ async def extract_travel_params(query: str) -> ExtractionResult:
                     "num_predict": 256,
                     "temperature": 0.0,
                 },
+                format="json",
             )
             text = response.message.content.strip()
             logger.info(f"LLM response (cleaned '{cleaned[:60]}'): '{text[:200]}'")
 
             data = _parse_llm_json(text)
-            dest = data.get("destination")
-            origin = data.get("origin")
+            if data.get("valid") is False:
+                return ExtractionResult(valid=False)
+            dest = _normalize_city_name(data.get("destination"))
+            origin = _normalize_city_name(data.get("origin"))
             raw_budget = data.get("budget")
             if raw_budget is not None:
                 try:
@@ -134,6 +189,25 @@ async def extract_travel_params(query: str) -> ExtractionResult:
             # Return partial result with dates only
     else:
         logger.info(f"Skipping LLM: cleaned query has no meaningful content: '{cleaned[:60]}'")
+
+    if llm_called:
+        if dest and not _city_in_query(dest, cleaned):
+            logger.info(f"Hallucinated destination '{dest}' removed")
+            dest = None
+        if origin and not _city_in_query(origin, cleaned):
+            logger.info(f"Hallucinated origin '{origin}' removed")
+            origin = None
+        if dest and origin and dest.lower() == origin.lower():
+            q = cleaned.lower()
+            has_from = any(m in q for m in ["from ", "von ", "из "])
+            has_to = any(m in q for m in [" to ", " nach ", " в ", "to "])
+            if has_from and not has_to:
+                dest = None
+            elif has_to and not has_from:
+                origin = None
+        if not dest and not origin and not check_in and not check_out:
+            logger.info(f"All fields hallucinated, marking invalid")
+            return ExtractionResult(valid=False)
 
     logger.info(
         f"Extracted: dest={dest}, origin={origin}, "

@@ -23,6 +23,7 @@ export type TranslationKey =
   | 'results.hotelPrice'
   | 'results.from'
   | 'results.stars'
+  | 'results.bookBtn'
   | 'ai.openBtn'
   | 'ai.modalTitle'
   | 'ai.placeholder'
@@ -37,7 +38,8 @@ export type TranslationKey =
   | 'ai.allSet'
   | 'ai.searching'
   | 'lang.en'
-  | 'lang.de';
+  | 'lang.de'
+  | 'pagination.loadMore';
 
 const translations: Record<Language, Record<TranslationKey, string>> = {
   en: {
@@ -63,6 +65,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     'results.hotelPrice': 'Hotel',
     'results.from': 'From',
     'results.stars': '★',
+    'results.bookBtn': 'Book',
     'ai.openBtn': 'AI Search',
     'ai.modalTitle': 'AI Travel Agent',
     'ai.placeholder': 'Describe your trip... (e.g. "I want to go to Paris from London next week")',
@@ -78,6 +81,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     'ai.searching': 'Searching for the best trips...',
     'lang.en': 'EN',
     'lang.de': 'DE',
+    'pagination.loadMore': 'Load more',
   },
   de: {
     'app.title': 'Reisesuche',
@@ -102,6 +106,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     'results.hotelPrice': 'Hotel',
     'results.from': 'Ab',
     'results.stars': '★',
+    'results.bookBtn': 'Book',
     'ai.openBtn': 'KI-Suche',
     'ai.modalTitle': 'KI Reiseagent',
     'ai.placeholder': 'Beschreibe deine Reise... (z.B. "Ich möchte nächste Woche nach Paris von London reisen")',
@@ -117,6 +122,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     'ai.searching': 'Suche nach den besten Reisen...',
     'lang.en': 'EN',
     'lang.de': 'DE',
+    'pagination.loadMore': 'Mehr laden',
   },
 };
 

@@ -1,4 +1,7 @@
+import { useEffect, useState } from 'react';
 import type { TripRead } from '../types/trip';
+
+const PAGE_SIZE = 10;
 
 interface ResultsProps {
   t: (key: any, params?: any) => string;
@@ -18,6 +21,18 @@ function formatDate(iso: string | null | undefined): string {
 }
 
 export default function Results({ t, trips, loading }: ResultsProps) {
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const visibleTrips = trips.slice(0, visibleCount);
+  const hasMore = visibleCount < trips.length;
+
+  const handleLoadMore = () => {
+    setVisibleCount((prev) => prev + PAGE_SIZE);
+  };
+
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [trips]);
+
   if (loading) {
     return (
       <div className="mt-6 flex items-center justify-center py-12 text-gray-400">
@@ -38,7 +53,7 @@ export default function Results({ t, trips, loading }: ResultsProps) {
     <div className="mt-6">
       <p className="mb-3 text-sm text-gray-500">{t('search.resultsCount', { count: trips.length })}</p>
       <div className="space-y-3">
-        {trips.map((trip) => (
+        {visibleTrips.map((trip) => (
           <div
             key={trip.id}
             className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md"
@@ -48,9 +63,6 @@ export default function Results({ t, trips, loading }: ResultsProps) {
                 <h3 className="text-lg font-semibold text-gray-900">
                   {trip.destination}
                 </h3>
-                <p className="text-sm text-gray-500">
-                  {t('results.from')} {trip.origin ?? '—'}
-                </p>
                 {(trip.from_airport || trip.to_airport) && (
                   <p className="mt-0.5 text-xs font-medium text-gray-400">
                     {trip.from_airport ?? '?'} → {trip.to_airport ?? '?'}
@@ -82,10 +94,28 @@ export default function Results({ t, trips, loading }: ResultsProps) {
                   {t('results.hotelStars')}: <span className="font-medium">{'★'.repeat(trip.hotel_stars)}</span>
                 </span>
               )}
+              {trip.booking_url && (
+                <button
+                  onClick={() => window.open(trip.booking_url!, '_blank', 'noopener,noreferrer')}
+                  className="ml-auto rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+                >
+                  {t('results.bookBtn')}
+                </button>
+              )}
             </div>
           </div>
         ))}
       </div>
+      {hasMore && (
+        <div className="mt-4 text-center">
+          <button
+            onClick={handleLoadMore}
+            className="rounded-lg border border-gray-300 bg-white px-6 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+          >
+            {t('pagination.loadMore')} ({trips.length - visibleCount})
+          </button>
+        </div>
+      )}
     </div>
   );
 }

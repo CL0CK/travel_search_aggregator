@@ -1,19 +1,29 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { SearchParams } from '../types/trip';
 
 interface SearchFormProps {
   t: (key: any, params?: any) => string;
   onSearch: (params: SearchParams) => void;
   loading: boolean;
+  aiValues: SearchParams | null;
 }
 
-export default function SearchForm({ t, onSearch, loading }: SearchFormProps) {
+export default function SearchForm({ t, onSearch, loading, aiValues }: SearchFormProps) {
   const [destination, setDestination] = useState('');
   const [origin, setOrigin] = useState('');
   const [checkIn, setCheckIn] = useState('');
   const [checkOut, setCheckOut] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
   const [hotelStars, setHotelStars] = useState('');
+
+  useEffect(() => {
+    if (aiValues) {
+      setDestination(aiValues.destination);
+      setOrigin(aiValues.origin);
+      setCheckIn(aiValues.check_in);
+      setCheckOut(aiValues.check_out);
+    }
+  }, [aiValues]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

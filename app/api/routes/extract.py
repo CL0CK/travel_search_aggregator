@@ -14,9 +14,17 @@ async def extract(body: dict):
     query = body.get("query", "")
     if not query:
         raise HTTPException(status_code=400, detail="Query is empty")
+    accumulated = body.get("accumulated")
     try:
-        result = await extract_travel_params(query)
+        result = await extract_travel_params(query, accumulated)
+        if not result.valid:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Your query doesn't seem to be about travel. Please describe your trip with destination, origin, and dates.",
+            )
         return result.model_dump()
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"LLM extraction failed for query '{query[:50]}': {e}")
         raise HTTPException(

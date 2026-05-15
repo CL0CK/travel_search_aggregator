@@ -87,6 +87,7 @@ async def search_trips(
             check_out=check_out,
             from_airport=from_code,
             to_airport=to_code,
+            booking_url=t.get("booking_url"),
         )
         for t in ranked_trips
     ]

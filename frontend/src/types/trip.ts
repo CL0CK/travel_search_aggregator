@@ -13,6 +13,7 @@ export interface TripRead {
   check_out: string | null;
   from_airport: string | null;
   to_airport: string | null;
+  booking_url: string | null;
 }
 
 export interface SearchAIResponse {

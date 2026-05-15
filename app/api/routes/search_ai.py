@@ -39,6 +39,11 @@ async def search_trips_ai(
             detail="Failed to process query with AI",
         )
 
+    if not extracted.valid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Your query doesn't seem to be about travel. Please describe your trip with destination, origin, and dates.",
+        )
     if not extracted.destination:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -107,6 +112,7 @@ async def search_trips_ai(
                 check_out=check_out,
                 from_airport=from_code,
                 to_airport=to_code,
+                booking_url=t.get("booking_url"),
             )
             for t in ranked
         ],
