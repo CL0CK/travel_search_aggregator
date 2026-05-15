@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { extractParams, searchTrips } from '../api/client';
-import type { ExtractionParams, TripRead } from '../types/trip';
+import type { ExtractionParams, SearchParams, TripRead } from '../types/trip';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -12,6 +12,7 @@ interface AIChatModalProps {
   open: boolean;
   onClose: () => void;
   onResults: (results: TripRead[]) => void;
+  onParamsFill?: (params: SearchParams) => void;
 }
 
 const EMPTY_PARAMS: ExtractionParams = {
@@ -23,13 +24,18 @@ const EMPTY_PARAMS: ExtractionParams = {
 };
 
 function mergeParams(old: ExtractionParams, fresh: ExtractionParams): ExtractionParams {
-  return {
+  const merged = {
     destination: old.destination ?? fresh.destination,
     origin: old.origin ?? fresh.origin,
     check_in: old.check_in ?? fresh.check_in,
     check_out: old.check_out ?? fresh.check_out,
     budget: old.budget ?? fresh.budget,
   };
+  // LLM put a city in destination but we already have one and need origin — move to origin
+  if (old.destination && !merged.origin && fresh.destination && fresh.destination !== old.destination) {
+    merged.origin = fresh.destination;
+  }
+  return merged;
 }
 
 function describeMissing(p: ExtractionParams, t: (key: any) => string): string | null {
@@ -49,7 +55,7 @@ function formatExtracted(p: ExtractionParams, t: (key: any) => string): string {
   return parts.join(', ') + '.';
 }
 
-export default function AIChatModal({ t, open, onClose, onResults }: AIChatModalProps) {
+export default function AIChatModal({ t, open, onClose, onResults, onParamsFill }: AIChatModalProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -80,7 +86,7 @@ export default function AIChatModal({ t, open, onClose, onResults }: AIChatModal
     setLoading(true);
 
     try {
-      const fresh = await extractParams(query);
+      const fresh = await extractParams(query, accumulated);
       const merged = mergeParams(accumulated, fresh);
       setAccumulated(merged);
 
@@ -109,6 +115,12 @@ export default function AIChatModal({ t, open, onClose, onResults }: AIChatModal
 
         if (trips.length > 0) {
           onResults(trips);
+          onParamsFill?.({
+            destination: merged.destination!,
+            origin: merged.origin!,
+            check_in: merged.check_in!,
+            check_out: merged.check_out!,
+          });
         }
       }
     } catch (err: any) {

@@ -12,8 +12,10 @@ export default function App() {
   const [trips, setTrips] = useState<TripRead[]>([]);
   const [loading, setLoading] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
+  const [aiFormValues, setAiFormValues] = useState<SearchParams | null>(null);
 
   const handleSearch = async (params: SearchParams) => {
+    setAiFormValues(null);
     setLoading(true);
     setTrips([]);
     try {
@@ -36,7 +38,7 @@ export default function App() {
       <Header t={t} lang={lang} setLang={setLang} onOpenAI={() => setAiOpen(true)} />
 
       <main className="mx-auto max-w-5xl px-4 py-6">
-        <SearchForm t={t} onSearch={handleSearch} loading={loading} />
+        <SearchForm t={t} onSearch={handleSearch} loading={loading} aiValues={aiFormValues} />
         <Results t={t} trips={trips} loading={loading} />
       </main>
 
@@ -45,6 +47,7 @@ export default function App() {
         open={aiOpen}
         onClose={() => setAiOpen(false)}
         onResults={handleAIResults}
+        onParamsFill={setAiFormValues}
       />
     </div>
   );

@@ -320,6 +320,7 @@ async def _search_hotels(
             "stars": int(stars) if stars else 0,
             "rating": float(review) / 2.0 if review else 0,
             "destination": dest_city,
+            "booking_url": hotel.get("url"),
         })
 
     logger.info(f"Booking.com hotels: found {len(hotels)} offers")
@@ -359,6 +360,7 @@ async def provider_rapidapi(
                 "hotel_stars": hotel["stars"],
                 "flight_price": flight["price"],
                 "hotel_price": hotel["price"],
+                "booking_url": hotel.get("booking_url"),
             })
 
     logger.info(f"Booking.com packages: {len(packages)} combinations")
