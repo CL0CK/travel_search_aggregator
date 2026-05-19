@@ -1,10 +1,14 @@
 import sys
 import io
 import logging
+import os
 from pathlib import Path
 from contextlib import asynccontextmanager
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
+
+# Create logs directory if it doesn't exist
+os.makedirs("logs", exist_ok=True)
 
 import uvicorn
 from fastapi import FastAPI
