@@ -15,7 +15,7 @@ from app.core.redis import create_redis
 from app.core.rate_limiter import RateLimiter
 from app.services.cache import CacheService
 from app.services.model_download import ensure_model_available
-from app.db.session import engine, async_session_maker
+from app.db.session import get_engine, get_session_maker
 from app.models.base import Base
 from app.db.seed import seed_trips
 
@@ -57,9 +57,11 @@ async def lifespan(app: FastAPI):
 
     if settings.has_db:
         try:
+            engine = get_engine()
             async with engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
-            async with async_session_maker() as session:
+            session_maker = get_session_maker()
+            async with session_maker() as session:
                 await seed_trips(session)
             logger.info("PostgreSQL connected and seeded")
         except Exception as e:
@@ -73,7 +75,7 @@ async def lifespan(app: FastAPI):
         await redis.aclose()
         logger.info("Redis disconnected")
     if settings.has_db:
-        await engine.dispose()
+        await get_engine().dispose()
 
 
 app = FastAPI(
