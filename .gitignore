@@ -1,61 +1,8 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# Virtual environments
 .env
+.env.local
+.env.production
 .venv/
-venv/
-ENV/
-env/
-
-# Database
-*.db
-*.sqlite
-*.sqlite3
-
-# Testing
-.pytest_cache/
-.ruff_cache/
-.coverage
-htmlcov/
-.mypy_cache/
-
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Logs
+__pycache__/
+*.pyc
 logs/
-
-# Docker volumes (local data)
-redis_data/
-redisinsight_data/
-
-# Frontend build artifacts & deps
-frontend/dist/
-frontend/node_modules/
+*.log
