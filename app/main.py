@@ -2,10 +2,9 @@ import sys
 import io
 import logging
 from pathlib import Path
+from contextlib import asynccontextmanager
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from contextlib import asynccontextmanager
 
 import uvicorn
 from fastapi import FastAPI
@@ -56,18 +55,25 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Redis unavailable, running without cache/rate limiting: {e}")
 
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    async with async_session_maker() as session:
-        await seed_trips(session)
+    if settings.has_db:
+        try:
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            async with async_session_maker() as session:
+                await seed_trips(session)
+            logger.info("PostgreSQL connected and seeded")
+        except Exception as e:
+            logger.warning(f"PostgreSQL unavailable: {e}")
+    else:
+        logger.info("PostgreSQL not configured, running without database")
 
     yield
 
     if redis:
         await redis.aclose()
         logger.info("Redis disconnected")
-    await engine.dispose()
+    if settings.has_db:
+        await engine.dispose()
 
 
 app = FastAPI(
@@ -78,7 +84,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

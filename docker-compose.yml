@@ -1,43 +1,70 @@
-version: '3.8'
-
 services:
-  redis_container:
-    image: redis:latest
-    container_name: redis_container
+  redis:
+    image: redis:7-alpine
     ports:
       - "6379:6379"
     volumes:
-      - ./redis_data:/data
-    command: redis-server --appendonly yes
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 3
-    networks:
-      - redis_net
+      - redis_data:/data
+    command: redis-server --appendonly yes --save ""
 
-  redis_gui:
-    image: redislabs/redisinsight:latest
-    container_name: redis_gui
-    restart: always
-    ports:
-      - "8001:5540"
-    volumes:
-      - ./redisinsight_data:/db
+  postgres:
+    image: postgres:16-alpine
     environment:
-      - REDIS_0_HOST=redis_container
-      - REDIS_0_PORT=6379
-    depends_on:
-      redis_container:
-        condition: service_healthy
-    networks:
-      - redis_net
+      - POSTGRES_DB=travel_aggregator
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
 
-networks:
-  redis_net:
-    driver: bridge
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - RAPIDAPI_KEY=${RAPIDAPI_KEY}
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=travel_aggregator
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - OLLAMA_HOST=http://ollama:11434
+    depends_on:
+      - redis
+      - postgres
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: ../Dockerfile.frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        ollama serve &
+        sleep 15
+        ollama pull phi3:mini
+        wait
 
 volumes:
   redis_data:
-  redisinsight_data:
+  postgres_data:
+  ollama_data:

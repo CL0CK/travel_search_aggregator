@@ -1,6 +1,6 @@
 import type { TripRead, SearchAIResponse, SearchParams, ExtractionParams } from '../types/trip';
 
-const BASE = '';
+const BASE = import.meta.env.VITE_API_URL || '';
 
 export class ApiError extends Error {
   status: number;

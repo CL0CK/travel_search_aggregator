@@ -1,5 +1,8 @@
+from pathlib import Path
+import os
+
 from pydantic import Field
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -13,14 +16,16 @@ class Settings(BaseSettings):
     rate_limit_max_requests: int = Field(default=5)
     rate_limit_window_seconds: int = Field(default=30)
     rapidapi_key: str = Field(default="")
+    database_url: str = Field(default="")
 
-    model_config = {
-        "env_file": ".env",
-    }
+    model_config = SettingsConfigDict(
+        env_file=Path(__file__).parent.parent.parent / ".env",
+        env_file_encoding="utf-8",
+    )
 
     @property
-    def database_url(self) -> str:
-        return f"postgresql+asyncpg://{self.db_user}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_name}"
+    def has_db(self) -> bool:
+        return bool(self.database_url.strip())
 
 settings = Settings()
 
