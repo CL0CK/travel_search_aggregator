@@ -26,6 +26,8 @@ _DATE_PATTERNS = [
     (r'(\d{4})-(\d{2})-(\d{2})', lambda m: f"{m[1]}-{m[2]}-{m[3]}"),
     (r'(\d{2})\.(\d{2})\.(\d{4})', lambda m: f"{m[3]}-{m[2]}-{m[1]}"),
     (r'(\d{2})/(\d{2})/(\d{4})', lambda m: f"{m[3]}-{m[2]}-{m[1]}"),
+    (r'(\d{2})\.(\d{2})\.(\d{2})', lambda m: f"20{m[3]}-{m[2]}-{m[1]}"),
+    (r'(\d{2})/(\d{2})/(\d{2})', lambda m: f"20{m[3]}-{m[2]}-{m[1]}"),
 ]
 
 
@@ -186,9 +188,13 @@ async def extract_travel_params(query: str, accumulated: dict | None = None) -> 
                     budget = None
         except Exception as e:
             logger.warning(f"LLM extraction failed for cleaned query '{cleaned[:50]}': {e}")
-            # Return partial result with dates only
     else:
         logger.info(f"Skipping LLM: cleaned query has no meaningful content: '{cleaned[:60]}'")
+
+    if not llm_called and accumulated:
+        dest = _normalize_city_name(accumulated.get("destination"))
+        origin = _normalize_city_name(accumulated.get("origin"))
+        logger.info(f"LLM skipped, using accumulated: dest={dest}, origin={origin}")
 
     if llm_called:
         if dest and not _city_in_query(dest, cleaned):
